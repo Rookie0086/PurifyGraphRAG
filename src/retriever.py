@@ -831,7 +831,7 @@ class FactRetriever(BaseRetriever):
                 "node_scores": {}, "node_chunks": {},
                 "matched_entities": [{"uid": uid, "name": "", "score": 1.0}]}
 
-    # ── Quality Promotion (called by CacheGraphRAG after answer generation) ──
+    # ── Quality Promotion (called by PurifyGraphRAG after answer generation) ──
 
     def _handle_promotion(self, chunk_entity_coverage, entity_chunks, track_promotion):
         pass  # Promotion deferred to after answer generation, triggered by promote_after_qa

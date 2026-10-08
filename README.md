@@ -1,4 +1,4 @@
-# CacheGraphRAG
+# PurifyGraphRAG
 
 <p align="center">
   <a href="https://www.python.org/"><img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white"></a>
@@ -10,7 +10,7 @@
 
 > **English** · [中文](./README_zh.md)
 
-CacheGraphRAG is a **self-purifying** Graph-based Retrieval-Augmented Generation (RAG) framework designed for **continuous streaming knowledge ingestion**. It is built on an **L1/L2 two-tier graph cache** for efficient graph indexing and retrieval: L1 uses NetworkX as an in-memory hot cache (LRU+TTL eviction), while L2 uses NebulaGraph as the persistent store. An access-frequency-driven hot/cold promotion mechanism (Knowledge Purification) filters extraction noise at promotion time and suppresses unbounded graph inflation.
+PurifyGraphRAG is a graph retrieval-augmented generation (RAG) framework that **purifies knowledge during incremental ingestion**. It is built on a **self-purifying dual-layer graph architecture**: L1 is a bounded in-memory transient graph (NetworkX, LRU+TTL with reference-counting eviction) that stages frequently accessed knowledge, L2 is the persistent knowledge graph (NebulaGraph) that solidifies high-value subgraphs, and a full-scale vector store (Milvus) serves as the fallback substrate. An access-frequency-driven promotion mechanism (knowledge purification) filters extraction noise at promotion time and suppresses unbounded graph inflation.
 
 ---
 
@@ -22,28 +22,28 @@ Integrating Knowledge Graphs with Retrieval-Augmented Generation (RAG) significa
 2. **Graph topology pollution and unbounded inflation**: Conventional systems adopt an "eager write" strategy, committing every extracted entity and relation directly to a persistent graph database. As streaming documents keep arriving, the graph densifies rapidly, triggering neighborhood explosions around high-degree super nodes during retrieval and injecting extensive long-tail noise.
 3. **Semantic drift via passive one-shot retrieval**: Static retrieval pipelines cannot adaptively adjust search intent based on accumulated intermediate clues. When encountering relational gaps in the topology, they easily drift into irrelevant branches, breaking multi-hop reasoning chains.
 
-CacheGraphRAG resolves these bottlenecks through three synergistic mechanisms:
+PurifyGraphRAG resolves these bottlenecks through three synergistic mechanisms:
 
-1. **Asynchronous pipelined indexing engine**: Decouples high-latency LLM symbolic extraction from embedding generation, combined with an **LLM-free funnel-based entity alignment** (cascading similarity thresholds + alias constraints) that stitches graph fragments at minimal overhead for low-latency graph construction.
-2. **Continuous dual-layer graph cache architecture**: The L1 memory graph is bounded by hard capacity limits (LRU+TTL + reference-counting garbage collection); L2 only solidifies high-value subgraphs passing the access-frequency threshold `h(c) >= tau_hit` (knowledge purification), backed by a full-scale vector store. **Lazy Topology Rehydration** restores long-tail connectivity within milliseconds on cache misses—without any LLM calls.
-3. **Iterative agentic query decomposer**: Instantiates the LLM as an active planning agent that performs Beam Search over the graph topology with hop-decay constraints (γ^l), dynamically planning next-hop exploration paths based on intermediate states and suppressing exponential noise propagation from multi-branch topological divergence.
+1. **Asynchronous pipelined indexing engine**: Decouples high-latency LLM symbolic extraction from embedding generation in two concurrent stages, combined with an **LLM-free funnel-based entity alignment** (cascading similarity thresholds + alias constraints) that stitches graph fragments at minimal overhead for low-latency graph construction.
+2. **Self-purifying dual-layer graph architecture**: The L1 transient memory graph is bounded by hard capacity limits (LRU+TTL + reference-counting garbage collection); L2 only solidifies high-value subgraphs passing the access-frequency threshold `h(c) >= tau_hit` (knowledge purification), backed by a full-scale vector store. **Lazy Rehydration** restores long-tail connectivity within milliseconds on L1 misses—without any LLM calls.
+3. **Iterative agentic query decomposer**: Instantiates the LLM as an active planning agent that performs Beam Search over the graph topology with hop-decay constraints (γ^l) and deterministic loop-breaking, dynamically planning next-hop exploration paths based on intermediate states and suppressing exponential noise propagation from multi-branch topological divergence.
 
-**Key results**: On RGB, 2WikiMultihopQA, HotpotQA, and the self-constructed streaming benchmark SpecificQA, CacheGraphRAG achieves leading end-to-end QA accuracy; it significantly reduces streaming indexing latency and compresses the persistent topological footprint (node/edge counts) by **81.1%–94.7%** compared to the most space-efficient baselines.
+**Key results**: On RGB, 2WikiMultihopQA, HotpotQA, and the self-built incremental-update benchmark SpecificQA, PurifyGraphRAG sustains state-of-the-art end-to-end QA accuracy; it attains the lowest indexing and update latency among incremental-capable baselines (indexing time reduced by **3.4%–35.4%** over the fastest baseline on each dataset) and compresses the persistent topological footprint (node/edge counts) by **81.1%–94.7%** compared with the most space-efficient baselines.
 
 ---
 
 ## 🏗️ Core Architecture
 
-![CacheGraphRAG core architecture](framework.jpg)
+![PurifyGraphRAG core architecture](framework.jpg)
 
 ## 📁 Project Structure
 
 ```
-CacheGraphRAG/
+PurifyGraphRAG/
 ├── src/
-│   ├── CacheGraphRAG.py           # Main entry + CLI
-│   ├── pipeline.py                # Document ingestion pipeline (asyncio.gather for Lazy Batched Embedding)
-│   ├── memory_graph.py            # L1 memory graph (L1CachePolicy: LRU+TTL) + L2 NebulaGraph
+│   ├── PurifyGraphRAG.py          # Main entry + CLI
+│   ├── pipeline.py                # Document ingestion pipeline (asyncio.gather; merged embedding requests + batched offline alignment)
+│   ├── memory_graph.py            # L1 transient memory graph (L1CachePolicy: LRU+TTL) + L2 NebulaGraph
 │   │                                 # rehydrate_chunk_from_milvus() for Lazy Rehydration
 │   ├── retriever.py               # HybridRetriever (configurable gamma/B/max_hops)
 │   ├── IterativeAgenticEngine.py  # IterativeAgenticEngine (code-level loop-breaking)
@@ -69,7 +69,7 @@ CacheGraphRAG/
 ├── config/
 │   └── config.yaml                # Global configuration
 ├── scripts/
-│   ├── storage_analysis.py        # Storage footprint analysis (Table V / bottleneck verification)
+│   ├── storage_analysis.py        # Storage footprint analysis (Table 5 / bottleneck verification)
 │   ├── efficiency_comparison.py   # Efficiency comparison (latency + token cost + LLM calls)
 │   └── fair_evaluation.py         # Fig. 5 fair evaluation reproduction (from empty L1+L2)
 ├── requirements.txt
@@ -86,11 +86,11 @@ CacheGraphRAG/
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/CacheGraphRAG.git
-cd CacheGraphRAG
+git clone https://github.com/Rookie0086/PurifyGraphRAG.git
+cd PurifyGraphRAG
 
-conda create -n cachegraphrag python=3.10 -y
-conda activate cachegraphrag
+conda create -n purifygraphrag python=3.10 -y
+conda activate purifygraphrag
 
 pip install -r requirements.txt
 ```
@@ -138,11 +138,11 @@ docker ps | grep -E "milvus|nebula"
 
 ```python
 import asyncio
-from src.CacheGraphRAG import CacheGraphRAG
+from src.PurifyGraphRAG import PurifyGraphRAG
 
-app = CacheGraphRAG(
+app = PurifyGraphRAG(
     dataset="hotpotqa",
-    l1_max_chunks=100,       # C_max
+    l1_max_chunks=200,       # C_max
     promotion_threshold=3,   # tau_hit
 )
 
@@ -168,13 +168,13 @@ Set all options in `config/config.yaml` and run:
 
 ```bash
 # Full pipeline (index + QA)
-python -m src.CacheGraphRAG
+python -m src.PurifyGraphRAG
 
 # Index only (config.yaml: retrieval.index_only = true)
-python -m src.CacheGraphRAG
+python -m src.PurifyGraphRAG
 
 # QA only, skip indexing (config.yaml: retrieval.skip_index = true)
-python -m src.CacheGraphRAG
+python -m src.PurifyGraphRAG
 ```
 
 ---
@@ -207,7 +207,7 @@ All hyperparameters are defined in `config/config.yaml`. Paper notation → conf
 | `tau_sim` | `entity_alignment.tau_sim` | 0.85 | Entity vector similarity threshold |
 | `tau_desc` | `entity_alignment.tau_desc` | 0.5 | Entity description similarity threshold |
 | `tau_hit` | `indexing.tau_hit` | 3 | Chunk promotion threshold h(c) >= tau_hit |
-| `C_max` | `indexing.C_max` | 100 | L1 cache capacity limit (max chunks) |
+| `C_max` | `indexing.C_max` | 200 | L1 transient-layer capacity limit (max chunks) |
 | `gamma` | `retrieval.gamma` | 0.5 | Hop-decay weight (gamma^l) |
 | `B` | `retrieval.B` | 5 | Beam width (top-B nodes per hop) |
 | `k` | `fusion.k` | 60 | RRF fusion parameter |
@@ -233,7 +233,7 @@ retrieval:
 
 ```bash
 # 1. Run the full pipeline (document indexing + retrieval + answering)
-python -m src.CacheGraphRAG
+python -m src.PurifyGraphRAG
 # QA results are saved to output/qa/qa_results_hotpotqa_0_600.json
 
 # 2. Compute ACC / ROUGE-L / BERTScore
@@ -250,7 +250,7 @@ The remaining experiments can be found in the scripts under `scripts/`.
 
 The following tables report part of the experimental results from the paper (see the paper for details).
 
-### Table III: End-to-End QA Performance
+### Table 3: End-to-End QA Performance
 
 | Method | RGB ACC | RGB R-L | RGB BERT | 2Wiki ACC | 2Wiki R-L | 2Wiki BERT | HotpotQA ACC | HotpotQA R-L | HotpotQA BERT |
 |--------|---------|---------|----------|-----------|-----------|------------|--------------|--------------|---------------|
@@ -262,9 +262,9 @@ The following tables report part of the experimental results from the paper (see
 | KAG | 97.30 | 0.724 | 0.829 | 70.70 | 0.723 | 0.767 | 68.00 | 0.749 | 0.782 |
 | HyperGraphRAG | 97.67 | 0.942 | 0.583 | 39.80 | 0.405 | 0.409 | 51.70 | 0.547 | 0.522 |
 | Clue-RAG | 97.67 | 0.940 | 0.853 | 55.50 | 0.508 | 0.643 | 63.17 | 0.611 | 0.729 |
-| **CacheGraphRAG** | 97.67 | **0.948** | **0.860** | **73.17** | **0.753** | **0.780** | **68.30** | **0.760** | **0.800** |
+| **PurifyGraphRAG** | 97.67 | **0.948** | **0.860** | **73.17** | **0.753** | **0.780** | **68.30** | **0.760** | **0.800** |
 
-### Table IV: Indexing Time (seconds)
+### Table 4: Indexing Time (seconds)
 
 | Method | RGB | 2Wiki | HotpotQA | SpecificQA (Index) | SpecificQA (Update) |
 |--------|------|-------|----------|--------------------|---------------------|
@@ -273,11 +273,11 @@ The following tables report part of the experimental results from the paper (see
 | HippoRAG2 | 6315.58 | 2500.48 | 4690.68 | 1864.41 | 896.83 |
 | KAG | 6955.52 | 3077.61 | 3009.99 | 3290.18 | 1073.76 |
 | HyperGraphRAG | 20356.20 | 5625.48 | 7046.84 | 3087.18 | 1024.46 |
-| **CacheGraphRAG** | **4560.60** | **2204.72** | **2907.40** | **1363.60** | **579.80** |
+| **PurifyGraphRAG** | **4560.60** | **2204.72** | **2907.40** | **1363.60** | **579.80** |
 
-### Table V: Persistent Topological Footprint (Node / Edge Counts)
+### Table 5: Persistent Topological Footprint (Node / Edge Counts)
 
-CacheGraphRAG\* denotes the ablation variant with the dual-layer cache architecture removed.
+PurifyGraphRAG\* denotes the ablation variant with the dual-layer architecture removed.
 
 | Method | RGB Node | RGB Edge | 2Wiki Node | 2Wiki Edge | HotpotQA Node | HotpotQA Edge |
 |--------|----------|----------|------------|------------|---------------|---------------|
@@ -288,8 +288,8 @@ CacheGraphRAG\* denotes the ablation variant with the dual-layer cache architect
 | KAG | 109,820 | 155,554 | 37,007 | 53,093 | 53,369 | 85,684 |
 | HyperGraphRAG | 126,360 | 114,151 | 64,787 | 52,167 | 81,581 | 67,240 |
 | Clue-RAG | 35,734 | 48,257 | 63,129 | 89,615 | 110,640 | 140,305 |
-| CacheGraphRAG\* | 32,948 | 52,298 | 19,299 | 18,672 | 34,190 | 35,765 |
-| **CacheGraphRAG** | **1,059** | **1,257** | **1,081** | **1,035** | **1,391** | **1,393** |
+| PurifyGraphRAG\* | 32,948 | 52,298 | 19,299 | 18,672 | 34,190 | 35,765 |
+| **PurifyGraphRAG** | **1,059** | **1,257** | **1,081** | **1,035** | **1,391** | **1,393** |
 
 ### SpecificQA: Entity Disambiguation Performance
 
@@ -301,17 +301,17 @@ CacheGraphRAG\* denotes the ablation variant with the dual-layer cache architect
 | EraRAG | 55.00 | 0.558 | 0.592 |
 | KAG | 64.33 | 0.257 | 0.588 |
 | HyperGraphRAG | 68.00 | 0.697 | 0.577 |
-| **CacheGraphRAG** | **83.00** | **0.833** | 0.825 |
+| **PurifyGraphRAG** | **83.00** | **0.833** | 0.825 |
 
 ---
 
 ## 🤝 Contributing
 
-We warmly welcome community contributions! You can participate in improving CacheGraphRAG in the following ways.
+We warmly welcome community contributions! You can participate in improving PurifyGraphRAG in the following ways.
 
 ### Reporting Issues and Suggestions
 
-- Use [Issues](https://github.com/your-username/CacheGraphRAG/issues) to report bugs, propose new features, or suggest improvements.
+- Use [Issues](https://github.com/Rookie0086/PurifyGraphRAG/issues) to report bugs, propose new features, or suggest improvements.
 - When submitting an issue, please provide the environment (Python / Docker versions), reproduction steps, expected vs. actual behavior, and relevant log snippets to help us locate the problem faster.
 
 ### Submitting Code
@@ -325,7 +325,7 @@ We warmly welcome community contributions! You can participate in improving Cach
 2. Keep your code consistent with the existing style (PEP 8) and ensure your changes pass a minimal verification:
 
    ```bash
-   python -m src.CacheGraphRAG
+   python -m src.PurifyGraphRAG
    ```
 
 3. When submitting a Pull Request, clearly describe the motivation, implementation, and verification results, and link related issues.

@@ -15,7 +15,7 @@ This reproduces:
   - L1 first-round ACC: ~72.33%
   - L2 second-round ACC: ~70.83% (1.5pt below L1)
   - Vector rehydration cold-start floor: ~54.33%
-  - CacheGraphRAG* (cache removed): 1,059 → 32,948 nodes (31x inflation)
+  - PurifyGraphRAG* (dual-layer removed): 1,059 → 32,948 nodes (31x inflation)
 """
 
 import argparse
@@ -33,7 +33,7 @@ from src.utils.base import save_to_json
 
 
 async def run_fair_evaluation(dataset: str, start: int, end: int):
-    from src.CacheGraphRAG import CacheGraphRAG
+    from src.PurifyGraphRAG import PurifyGraphRAG
     from src.eval import evaluate_qa
 
     cfg = get_config()
@@ -41,7 +41,7 @@ async def run_fair_evaluation(dataset: str, start: int, end: int):
     cfg["data"]["start"] = start
     cfg["data"]["end"] = end
 
-    app = CacheGraphRAG.from_config(cfg)
+    app = PurifyGraphRAG.from_config(cfg)
 
     # ── Step 1: Clear L1+L2 from scratch ──
     print("\n" + "=" * 60)

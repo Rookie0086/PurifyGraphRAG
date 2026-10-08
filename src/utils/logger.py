@@ -12,7 +12,7 @@ from src.utils.base import create_dir
 
 
 class PipelineLogger:
-    """Logs key metrics for each stage of the CacheGraphRAG pipeline.
+    """Logs key metrics for each stage of the PurifyGraphRAG pipeline.
 
     Features:
     - Per-stage timing (ingestion / extraction / embedding / retrieval)
@@ -160,7 +160,7 @@ class PipelineLogger:
         self.metrics["retrieved_chunks"].append(n_chunks)
 
     def set_token_usage(self, prompt: int, completion: int):
-        """Set LLM token usage (called by CacheGraphRAG before shutdown)."""
+        """Set LLM token usage (called by PurifyGraphRAG before shutdown)."""
         self._prompt_tokens = prompt
         self._completion_tokens = completion
 
