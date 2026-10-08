@@ -1,4 +1,4 @@
-# CacheGraphRAG
+# PurifyGraphRAG
 
 <p align="center">
   <a href="https://www.python.org/"><img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white"></a>
@@ -10,7 +10,7 @@
 
 > [English](./README.md) · **中文**
 
-CacheGraphRAG 是一个面向**持续流式知识摄入**场景的自净化图检索增强生成（Graph-based RAG）框架。框架基于 **L1/L2 双层图缓存**实现高效的图索引与检索：L1 使用 NetworkX 作为内存热缓存（LRU+TTL 淘汰），L2 使用 NebulaGraph 作为持久化存储，访问频率驱动的冷热数据晋升机制（知识净化，Knowledge Purification）在晋升阶段过滤抽取噪声、抑制图的无限膨胀。
+PurifyGraphRAG 是一个在**增量知识摄入过程中完成知识净化**的图检索增强生成（Graph-based RAG）框架。框架基于**自净化双层图架构**实现高效的图索引与检索：L1 为有界的瞬态内存图（NetworkX，LRU+TTL 与引用计数淘汰），负责暂存高频访问的知识；L2 为持久化知识图（NebulaGraph），负责固化高价值子图；底层由全量向量库（Milvus）兜底。访问频率驱动的晋升机制（知识净化，Knowledge Purification）在晋升阶段过滤抽取噪声、抑制图的无限膨胀。
 
 ---
 
@@ -22,29 +22,29 @@ CacheGraphRAG 是一个面向**持续流式知识摄入**场景的自净化图�
 2. **图拓扑污染与无界膨胀**：传统系统普遍采用"急写（eager write）"策略，将抽取到的全部实体和关系直接写入持久图数据库。随着流式文档不断摄入，图迅速稠密化，检索时在高度数超节点周围引发邻域爆炸，注入大量长尾噪声。
 3. **被动一次式检索的语义漂移**：静态检索流程无法根据已积累的中间线索自适应调整搜索意图，遇到拓扑中的关系缺口时容易漂移到无关分支，导致多跳推理链断裂。
 
-针对上述瓶颈，CacheGraphRAG 引入三个相互协同的机制：
+针对上述瓶颈，PurifyGraphRAG 引入三个相互协同的机制：
 
-1. **异步流水线索引引擎**：解耦高延迟 LLM 符号抽取与向量生成，配合 **LLM-free 的漏斗式实体对齐**（级联相似度阈值 + 别名约束），以极低开销完成图片段拼接，实现低延迟图构建。
-2. **连续双层图缓存架构**：L1 内存图受硬容量约束（LRU+TTL + 引用计数垃圾回收），L2 仅固化通过访问频次阈值 `h(c) >= tau_hit` 的高价值子图（知识净化），底层由全量向量库兜底；**懒拓扑重水化**（Lazy Rehydration）在缓存未命中时无需 LLM 调用即可毫秒级恢复长尾连通性。
-3. **迭代式 Agentic 查询分解器**：将 LLM 实例化为主动规划智能体，在图拓扑上执行带跳衰减约束（γ^l）的 Beam Search，依据中间状态动态规划下一跳探索路径，抑制多分支拓扑发散带来的指数级噪声传播。
+1. **异步流水线索引引擎**：以两个并发阶段解耦高延迟 LLM 符号抽取与向量生成，配合 **LLM-free 的漏斗式实体对齐**（级联相似度阈值 + 别名约束），以极低开销完成图片段拼接，实现低延迟图构建。
+2. **自净化双层图架构**：L1 瞬态内存图受硬容量约束（LRU+TTL + 引用计数垃圾回收），L2 仅固化通过访问频次阈值 `h(c) >= tau_hit` 的高价值子图（知识净化），底层由全量向量库兜底；**懒重水化**（Lazy Rehydration）在 L1 未命中时无需 LLM 调用即可毫秒级恢复长尾连通性。
+3. **迭代式 Agentic 查询分解器**：将 LLM 实例化为主动规划智能体，在图拓扑上执行带跳衰减约束（γ^l）与确定性循环打断的 Beam Search，依据中间状态动态规划下一跳探索路径，抑制多分支拓扑发散带来的指数级噪声传播。
 
-**主要实验结论**：在 RGB、2WikiMultihopQA、HotpotQA 及自建的 SpecificQA 流式基准上，CacheGraphRAG 取得了领先的端到端 QA 准确率；同时显著降低流式索引延迟，并将持久化拓扑占用（节点/边数量）相比最节省空间的基线系统压缩 **81.1%–94.7%**。
+**主要实验结论**：在 RGB、2WikiMultihopQA、HotpotQA 及自建的 SpecificQA 增量更新基准上，PurifyGraphRAG 取得了领先的端到端 QA 准确率；在支持增量更新的基线中取得最低的索引与更新延迟（各数据集索引时间较最快基线降低 **3.4%–35.4%**），并将持久化拓扑占用（节点/边数量）相比最节省空间的基线系统压缩 **81.1%–94.7%**。
 
 ---
 
 ## 🏗️ 核心架构
 
-![CacheGraphRAG 核心架构](framework.jpg)
+![PurifyGraphRAG 核心架构](framework.jpg)
 
 ## 📁 项目结构
 
 ```
-CacheGraphRAG/
+PurifyGraphRAG/
 ├── src/
-│   ├── CacheGraphRAG.py           # 主入口 + CLI
-│   ├── pipeline.py                # 文档入库管线 (asyncio.gather for Lazy Batched Embedding)
-│   ├── memory_graph.py            # L1 内存图 (L1CachePolicy: LRU+TTL) + L2 NebulaGraph
-│   │                                 # rehydrate_chunk_from_milvus() for Lazy Rehydration
+│   ├── PurifyGraphRAG.py          # 主入口 + CLI
+│   ├── pipeline.py                # 文档入库管线 (asyncio.gather；合并嵌入请求 + 批式离线对齐)
+│   ├── memory_graph.py            # L1 瞬态内存图 (L1CachePolicy: LRU+TTL) + L2 NebulaGraph
+│   │                                 # rehydrate_chunk_from_milvus() 实现懒重水化 (Lazy Rehydration)
 │   ├── retriever.py               # HybridRetriever (configurable gamma/B/max_hops)
 │   ├── IterativeAgenticEngine.py  # IterativeAgenticEngine (code-level loop-breaking)
 │   ├── retrieval/
@@ -69,7 +69,7 @@ CacheGraphRAG/
 ├── config/
 │   └── config.yaml                # Global configuration
 ├── scripts/
-│   ├── storage_analysis.py        # 存储占用分析（Table V / 存储瓶颈验证）
+│   ├── storage_analysis.py        # 存储占用分析（Table 5 / 存储瓶颈验证）
 │   ├── efficiency_comparison.py   # 效率对比（延迟 + Token 消耗 + LLM 调用次数）
 │   └── fair_evaluation.py         # Fig. 5 公平评估复现（从空 L1+L2 出发）
 ├── requirements.txt
@@ -86,11 +86,11 @@ CacheGraphRAG/
 ### 安装
 
 ```bash
-git clone https://github.com/your-username/CacheGraphRAG.git
-cd CacheGraphRAG
+git clone https://github.com/Rookie0086/PurifyGraphRAG.git
+cd PurifyGraphRAG
 
-conda create -n cachegraphrag python=3.10 -y
-conda activate cachegraphrag
+conda create -n purifygraphrag python=3.10 -y
+conda activate purifygraphrag
 
 pip install -r requirements.txt
 ```
@@ -138,11 +138,11 @@ docker ps | grep -E "milvus|nebula"
 
 ```python
 import asyncio
-from src.CacheGraphRAG import CacheGraphRAG
+from src.PurifyGraphRAG import PurifyGraphRAG
 
-app = CacheGraphRAG(
+app = PurifyGraphRAG(
     dataset="hotpotqa",
-    l1_max_chunks=100,       # C_max
+    l1_max_chunks=200,       # C_max
     promotion_threshold=3,   # tau_hit
 )
 
@@ -168,13 +168,13 @@ asyncio.run(main())
 
 ```bash
 # 完整流程 (索引 + QA)
-python -m src.CacheGraphRAG
+python -m src.PurifyGraphRAG
 
 # 仅构建索引 (config.yaml: retrieval.index_only = true)
-python -m src.CacheGraphRAG
+python -m src.PurifyGraphRAG
 
 # 跳过索引、直接 QA (config.yaml: retrieval.skip_index = true)
-python -m src.CacheGraphRAG
+python -m src.PurifyGraphRAG
 ```
 
 ---
@@ -207,7 +207,7 @@ python -m src.CacheGraphRAG
 | `tau_sim` | `entity_alignment.tau_sim` | 0.85 | 实体向量相似度阈值 |
 | `tau_desc` | `entity_alignment.tau_desc` | 0.5 | 实体描述相似度阈值 |
 | `tau_hit` | `indexing.tau_hit` | 3 | chunk 晋升阈值 h(c) >= tau_hit |
-| `C_max` | `indexing.C_max` | 100 | L1 缓存容量上限 (max chunks) |
+| `C_max` | `indexing.C_max` | 200 | L1 瞬态层容量上限 (max chunks) |
 | `gamma` | `retrieval.gamma` | 0.5 | 跳衰减权重 (gamma^l) |
 | `B` | `retrieval.B` | 5 | Beam 宽度 (每跳 top-B 节点) |
 | `k` | `fusion.k` | 60 | RRF 融合参数 |
@@ -233,7 +233,7 @@ retrieval:
 
 ```bash
 # 1. 运行完整流程（文档索引 + 检索 + 回答）
-python -m src.CacheGraphRAG
+python -m src.PurifyGraphRAG
 # QA 结果保存至 output/qa/qa_results_hotpotqa_0_600.json
 
 # 2. 计算 ACC / ROUGE-L / BERTScore
@@ -250,7 +250,7 @@ python -c "from src.eval import evaluate_from_file, print_report; print_report(e
 
 以下为论文报告的部分实验结果（详见论文正文）。
 
-### Table III：端到端 QA 性能
+### Table 3：端到端 QA 性能
 
 | 方法 | RGB ACC | RGB R-L | RGB BERT | 2Wiki ACC | 2Wiki R-L | 2Wiki BERT | HotpotQA ACC | HotpotQA R-L | HotpotQA BERT |
 |------|---------|---------|----------|-----------|-----------|------------|--------------|--------------|---------------|
@@ -262,9 +262,9 @@ python -c "from src.eval import evaluate_from_file, print_report; print_report(e
 | KAG | 97.30 | 0.724 | 0.829 | 70.70 | 0.723 | 0.767 | 68.00 | 0.749 | 0.782 |
 | HyperGraphRAG | 97.67 | 0.942 | 0.583 | 39.80 | 0.405 | 0.409 | 51.70 | 0.547 | 0.522 |
 | Clue-RAG | 97.67 | 0.940 | 0.853 | 55.50 | 0.508 | 0.643 | 63.17 | 0.611 | 0.729 |
-| **CacheGraphRAG** | 97.67 | **0.948** | **0.860** | **73.17** | **0.753** | **0.780** | **68.30** | **0.760** | **0.800** |
+| **PurifyGraphRAG** | 97.67 | **0.948** | **0.860** | **73.17** | **0.753** | **0.780** | **68.30** | **0.760** | **0.800** |
 
-### Table IV：索引时间（秒）
+### Table 4：索引时间（秒）
 
 | 方法 | RGB | 2Wiki | HotpotQA | SpecificQA (Index) | SpecificQA (Update) |
 |------|------|-------|----------|--------------------|---------------------|
@@ -273,11 +273,11 @@ python -c "from src.eval import evaluate_from_file, print_report; print_report(e
 | HippoRAG2 | 6315.58 | 2500.48 | 4690.68 | 1864.41 | 896.83 |
 | KAG | 6955.52 | 3077.61 | 3009.99 | 3290.18 | 1073.76 |
 | HyperGraphRAG | 20356.20 | 5625.48 | 7046.84 | 3087.18 | 1024.46 |
-| **CacheGraphRAG** | **4560.60** | **2204.72** | **2907.40** | **1363.60** | **579.80** |
+| **PurifyGraphRAG** | **4560.60** | **2204.72** | **2907.40** | **1363.60** | **579.80** |
 
-### Table V：持久化拓扑占用（节点 / 边数量）
+### Table 5：持久化拓扑占用（节点 / 边数量）
 
-CacheGraphRAG\* 为移除双层缓存架构的消融变体。
+PurifyGraphRAG\* 为移除双层架构的消融变体。
 
 | 方法 | RGB Node | RGB Edge | 2Wiki Node | 2Wiki Edge | HotpotQA Node | HotpotQA Edge |
 |------|----------|----------|------------|------------|---------------|---------------|
@@ -288,8 +288,8 @@ CacheGraphRAG\* 为移除双层缓存架构的消融变体。
 | KAG | 109,820 | 155,554 | 37,007 | 53,093 | 53,369 | 85,684 |
 | HyperGraphRAG | 126,360 | 114,151 | 64,787 | 52,167 | 81,581 | 67,240 |
 | Clue-RAG | 35,734 | 48,257 | 63,129 | 89,615 | 110,640 | 140,305 |
-| CacheGraphRAG\* | 32,948 | 52,298 | 19,299 | 18,672 | 34,190 | 35,765 |
-| **CacheGraphRAG** | **1,059** | **1,257** | **1,081** | **1,035** | **1,391** | **1,393** |
+| PurifyGraphRAG\* | 32,948 | 52,298 | 19,299 | 18,672 | 34,190 | 35,765 |
+| **PurifyGraphRAG** | **1,059** | **1,257** | **1,081** | **1,035** | **1,391** | **1,393** |
 
 ### SpecificQA：实体消歧性能
 
@@ -301,17 +301,17 @@ CacheGraphRAG\* 为移除双层缓存架构的消融变体。
 | EraRAG | 55.00 | 0.558 | 0.592 |
 | KAG | 64.33 | 0.257 | 0.588 |
 | HyperGraphRAG | 68.00 | 0.697 | 0.577 |
-| **CacheGraphRAG** | **83.00** | **0.833** | 0.825 |
+| **PurifyGraphRAG** | **83.00** | **0.833** | 0.825 |
 
 ---
 
 ## 🤝 贡献
 
-我们非常欢迎社区贡献！你可以通过以下方式参与 CacheGraphRAG 的改进。
+我们非常欢迎社区贡献！你可以通过以下方式参与 PurifyGraphRAG 的改进。
 
 ### 报告问题与建议
 
-- 使用 [Issues](https://github.com/your-username/CacheGraphRAG/issues) 报告 Bug、提出新特性或改进建议。
+- 使用 [Issues](https://github.com/Rookie0086/PurifyGraphRAG/issues) 报告 Bug、提出新特性或改进建议。
 - 提交 Issue 时请尽量提供运行环境（Python / Docker 版本）、复现步骤、期望与实际行为以及相关日志片段，以便更快定位问题。
 
 ### 提交代码
@@ -325,11 +325,7 @@ CacheGraphRAG\* 为移除双层缓存架构的消融变体。
 2. 保持与现有代码一致的风格（PEP 8），并确保改动可通过最小验证：
 
    ```bash
-   python -m src.CacheGraphRAG
+   python -m src.PurifyGraphRAG
    ```
 
 3. 提交 Pull Request 时，请清晰描述改动动机、实现方式与验证结果，并关联相关 Issue。
-
-
-
-

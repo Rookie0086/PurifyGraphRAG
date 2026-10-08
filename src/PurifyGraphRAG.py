@@ -51,7 +51,7 @@ _CORPUS_LOADERS: dict = {
 }
 
 
-class CacheGraphRAG:
+class PurifyGraphRAG:
     def __init__(
         self,
         dataset: str,
@@ -155,7 +155,7 @@ class CacheGraphRAG:
         )
 
     @classmethod
-    def from_config(cls, custom_cfg: Optional[dict] = None) -> "CacheGraphRAG":
+    def from_config(cls, custom_cfg: Optional[dict] = None) -> "PurifyGraphRAG":
         """Build instance from config.yaml."""
         cfg = custom_cfg or get_config()
         model_cfg = cfg.get("model", {})
@@ -279,7 +279,7 @@ class CacheGraphRAG:
 
     # ── Document Ingestion ────────────────────────────────────────────
 
-    async def ingest(self, texts: List[str]) -> "CacheGraphRAG":
+    async def ingest(self, texts: List[str]) -> "PurifyGraphRAG":
         print("\n--- [Ingestion] ---")
         fact_cfg = get_config().get("fact_retrieval", {})
         ea_cfg = get_config().get("entity_alignment", {})
@@ -971,7 +971,7 @@ if __name__ == "__main__":
     data_cfg = cfg.get("data", {})
     ret_cfg = cfg.get("retrieval", {})
 
-    app = CacheGraphRAG.from_config(cfg)
+    app = PurifyGraphRAG.from_config(cfg)
 
     if ret_cfg.get("index_only", False):
         # Incremental experiment: Phase 1 (base) → Phase 2 (incremental)

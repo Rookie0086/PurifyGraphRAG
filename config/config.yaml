@@ -1,4 +1,4 @@
-# ── CacheGraphRAG Global Configuration ──────────────────────────
+# ── PurifyGraphRAG Global Configuration ─────────────────────────
 # All hyperparameters referenced in the paper are explicitly named here.
 # Paper notation → config key mapping:
 #   tau_sim  → entity_alignment.tau_sim
@@ -55,8 +55,8 @@ retrieval:
 indexing:
   chunk_size: 800
   chunk_overlap: 100
-  C_max: 100                   # L1 cache capacity limit (max chunks in memory)
-  l1_max_chunks: 100           # alias for C_max
+  C_max: 200                   # L1 cache capacity limit (max chunks in memory)
+  l1_max_chunks: 200           # alias for C_max
   l1_max_nodes: 0              # 0 = unlimited
   l1_ttl_seconds: 3600         # L1 TTL for LRU+TTL eviction
   build_concurrency: 15

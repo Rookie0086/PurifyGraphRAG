@@ -169,7 +169,7 @@ class NebulaClient:
         time.sleep(10)
 
     def create_graph_space(self, db_name):
-        """Create graph space (INT64 VID type, for CacheGraphRAG L2 persistent graph storage, with source_chunk attribute)."""
+        """Create graph space (INT64 VID type, for PurifyGraphRAG L2 persistent graph storage, with source_chunk attribute)."""
         self.session.execute(
             f"CREATE SPACE IF NOT EXISTS {db_name}(vid_type=INT64, partition_num=10, replica_factor=1);"
         )

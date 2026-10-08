@@ -2,7 +2,7 @@
 """Efficiency comparison: end-to-end latency, token cost, and LLM call count.
 
 Reproduces R1-W2 / R2-W4 / R3-W3 evidence that at equal accuracy,
-CacheGraphRAG's total retrieval+answer time outperforms baselines without
+PurifyGraphRAG's total retrieval+answer time outperforms baselines without
 inference optimization (e.g., MS-GraphRAG), and LLM calls are substantially
 lower than LLM-heavy baselines (HyperGraphRAG, KAG).
 
@@ -10,7 +10,7 @@ Usage:
     python scripts/efficiency_comparison.py --dataset hotpotqa --start 0 --end 200
 
 This script:
-1. Runs CacheGraphRAG on the specified dataset slice.
+1. Runs PurifyGraphRAG on the specified dataset slice.
 2. Collects: total retrieval+answer time, LLM token usage, LLM call count.
 3. Loads baseline measurements from data/baselines/efficiency_baselines.json
    (pre-recorded results for MS-GraphRAG, HyperGraphRAG, KAG, etc.).
@@ -91,9 +91,9 @@ def load_baselines():
     return DEFAULT_BASELINES
 
 
-async def run_cachegraphrag(dataset: str, start: int, end: int) -> dict:
-    """Run CacheGraphRAG and collect efficiency metrics."""
-    from src.CacheGraphRAG import CacheGraphRAG
+async def run_purifygraphrag(dataset: str, start: int, end: int) -> dict:
+    """Run PurifyGraphRAG and collect efficiency metrics."""
+    from src.PurifyGraphRAG import PurifyGraphRAG
 
     cfg = get_config()
     # Override config for this run
@@ -101,7 +101,7 @@ async def run_cachegraphrag(dataset: str, start: int, end: int) -> dict:
     cfg["data"]["start"] = start
     cfg["data"]["end"] = end
 
-    app = CacheGraphRAG.from_config(cfg)
+    app = PurifyGraphRAG.from_config(cfg)
 
     # Track LLM calls
     original_complete = app.llm.complete
@@ -152,26 +152,26 @@ async def run_cachegraphrag(dataset: str, start: int, end: int) -> dict:
         "retrieval_answer_time_s_per_q": round(per_q_time, 2),
         "total_retrieval_answer_time_s": round(retrieval_answer_time, 1),
         "llm_calls_index": llm_call_count[0],  # Approximate: index-phase calls
-        "llm_calls_retrieval": 1,  # CacheGraphRAG uses 1 LLM call per query (answer generation)
+        "llm_calls_retrieval": 1,  # PurifyGraphRAG uses 1 LLM call per query (answer generation)
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "accuracy": round(accuracy, 4),
     }
 
 
-def print_comparison_table(cgr_metrics: dict, baselines: dict, n_questions: int):
+def print_comparison_table(pgr_metrics: dict, baselines: dict, n_questions: int):
     """Print a formatted comparison table."""
     print("\n" + "=" * 100)
-    print("  Efficiency Comparison: CacheGraphRAG vs Baselines")
+    print("  Efficiency Comparison: PurifyGraphRAG vs Baselines")
     print("=" * 100)
     print(f"  {'System':<20} {'ACC':>6} {'Idx Time':>10} {'Ret/Q (s)':>10} {'LLM Calls (idx)':>16} {'LLM Calls (ret)':>16} {'Tokens':>12}")
     print("-" * 100)
 
-    # CacheGraphRAG
-    total_tok = cgr_metrics["prompt_tokens"] + cgr_metrics["completion_tokens"]
-    print(f"  {'CacheGraphRAG':<20} {cgr_metrics['accuracy']:>5.1%} {cgr_metrics['index_time_s']:>9.1f}s "
-          f"{cgr_metrics['retrieval_answer_time_s_per_q']:>9.2f}s "
-          f"{cgr_metrics['llm_calls_index']:>16} {cgr_metrics['llm_calls_retrieval']:>16} {total_tok:>12,}")
+    # PurifyGraphRAG
+    total_tok = pgr_metrics["prompt_tokens"] + pgr_metrics["completion_tokens"]
+    print(f"  {'PurifyGraphRAG':<20} {pgr_metrics['accuracy']:>5.1%} {pgr_metrics['index_time_s']:>9.1f}s "
+          f"{pgr_metrics['retrieval_answer_time_s_per_q']:>9.2f}s "
+          f"{pgr_metrics['llm_calls_index']:>16} {pgr_metrics['llm_calls_retrieval']:>16} {total_tok:>12,}")
 
     # Baselines
     for name, b in baselines.items():
@@ -187,17 +187,17 @@ def print_comparison_table(cgr_metrics: dict, baselines: dict, n_questions: int)
     print("\n  Key Findings:")
     ms = baselines.get("MS-GraphRAG", {})
     if ms:
-        speedup = ms.get("retrieval_answer_time_s_per_q", 1) / max(cgr_metrics["retrieval_answer_time_s_per_q"], 0.01)
-        print(f"  - At equal accuracy, CacheGraphRAG is {speedup:.1f}x faster per-query than MS-GraphRAG")
+        speedup = ms.get("retrieval_answer_time_s_per_q", 1) / max(pgr_metrics["retrieval_answer_time_s_per_q"], 0.01)
+        print(f"  - At equal accuracy, PurifyGraphRAG is {speedup:.1f}x faster per-query than MS-GraphRAG")
 
     hg = baselines.get("HyperGraphRAG", {})
     if hg:
-        call_reduction = hg.get("llm_calls_index", 1) / max(cgr_metrics["llm_calls_index"], 1)
+        call_reduction = hg.get("llm_calls_index", 1) / max(pgr_metrics["llm_calls_index"], 1)
         print(f"  - LLM calls are {call_reduction:.1f}x lower than HyperGraphRAG (indexing)")
 
     kag = baselines.get("KAG", {})
     if kag:
-        call_reduction = kag.get("llm_calls_index", 1) / max(cgr_metrics["llm_calls_index"], 1)
+        call_reduction = kag.get("llm_calls_index", 1) / max(pgr_metrics["llm_calls_index"], 1)
         print(f"  - LLM calls are {call_reduction:.1f}x lower than KAG (indexing)")
     print()
 
@@ -208,36 +208,36 @@ def main():
     parser.add_argument("--start", type=int, default=0, help="Start index")
     parser.add_argument("--end", type=int, default=200, help="End index")
     parser.add_argument("--skip-run", action="store_true",
-                        help="Skip running CacheGraphRAG, use cached results")
+                        help="Skip running PurifyGraphRAG, use cached results")
     args = parser.parse_args()
 
     baselines = load_baselines()
 
     if args.skip_run:
-        # Use cached CacheGraphRAG results
-        cached_path = "output/efficiency_cachegraphrag.json"
+        # Use cached PurifyGraphRAG results
+        cached_path = "output/efficiency_purifygraphrag.json"
         if os.path.exists(cached_path):
             with open(cached_path) as f:
-                cgr_metrics = json.load(f)
+                pgr_metrics = json.load(f)
         else:
             print("No cached results found. Run without --skip-run first.")
             sys.exit(1)
     else:
-        print(f"Running CacheGraphRAG on {args.dataset}[{args.start}:{args.end}]...")
-        cgr_metrics = asyncio.run(run_cachegraphrag(args.dataset, args.start, args.end))
+        print(f"Running PurifyGraphRAG on {args.dataset}[{args.start}:{args.end}]...")
+        pgr_metrics = asyncio.run(run_purifygraphrag(args.dataset, args.start, args.end))
 
-        # Save CacheGraphRAG results
+        # Save PurifyGraphRAG results
         os.makedirs("output", exist_ok=True)
-        with open("output/efficiency_cachegraphrag.json", "w") as f:
-            json.dump(cgr_metrics, f, indent=2, ensure_ascii=False)
+        with open("output/efficiency_purifygraphrag.json", "w") as f:
+            json.dump(pgr_metrics, f, indent=2, ensure_ascii=False)
 
     # Print comparison
     n_questions = args.end - args.start
-    print_comparison_table(cgr_metrics, baselines, n_questions)
+    print_comparison_table(pgr_metrics, baselines, n_questions)
 
     # Save combined results
     combined = {
-        "CacheGraphRAG": cgr_metrics,
+        "PurifyGraphRAG": pgr_metrics,
         **baselines,
     }
     os.makedirs("output", exist_ok=True)
